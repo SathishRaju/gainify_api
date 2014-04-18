@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require File.expand_path('../../lib/gainify_api',__FILE__)
+require File.expand_path('../../lib/gainify_api/cli',__FILE__)
+GainifyAPI::Cli.start(ARGV)

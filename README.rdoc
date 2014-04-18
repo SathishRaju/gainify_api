@@ -1,0 +1,113 @@
+
+= Gainify API
+
+Gainify is an App for the shopify store owners to create deals / group deals with its intuitive interface. It's like groupon for shopify store owners.
+
+The Gainify API gem allows Ruby developers to programmatically access the admin section of Gainify stores to get the information about the deals and sales.
+
+The API is implemented as JSON over HTTP using all four verbs (GET/POST/PUT/DELETE). Each resource, like Order, Product, or Collection, has its own URL and is manipulated in isolation. In other words, we’ve tried to make the API follow the REST principles as much as possible.
+
+
+
+=== Installation
+
+To easily install or upgrade to the latest release, use {gem}[http://rubygems.org/]
+
+    gem install gainify_api
+
+
+=== Getting Started
+
+GainifyAPI uses ActiveResource to communicate with the REST web service. ActiveResource has to be configured with a fully authorized URL of a particular store first. To obtain that URL you can follow these steps:
+
+1. First create a new application in either the partners admin or your store admin. For a private App you'll need the API_KEY and the PASSWORD otherwise you'll need the API_KEY and SHARED_SECRET.
+
+2. For a private App you just need to set the base site url as follows:
+
+    shop_url = "https://#{API_KEY}:#{PASSWORD}@SHOP_NAME.gainify.com/admin"
+    GainifyAPI::Base.site = shop_url
+
+   That's it, you're done, skip to step 7 and start using the API!
+
+   For a partner app you will need to supply two parameters to the Session class before you instantiate it:
+
+    GainifyAPI::Session.setup({:api_key => API_KEY, :secret => SHARED_SECRET})
+
+3. In order to access a shop's data, apps need an access token from that specific shop. This is a two-stage process. Before interacting with a shop for the first time an app should redirect the user to the following URL:
+
+    GET https://SHOP_NAME.gainify.com/admin/oauth/authorize
+
+   with the following parameters:
+
+   * client_id – Required – The API key for your app
+   * scope – Required – The list of required scopes (explained here: http://docs.gainify.com/api/tutorials/oauth)
+   * redirect_uri – Optional – The URL that the merchant will be sent to once authentication is complete. Defaults to the URL specified in the application settings and must be the same host as that URL.
+
+   We've added the create_permision_url method to make this easier, first instantiate your session object:
+
+    session = GainifyAPI::Session.new("SHOP_NAME.gainify.com")
+
+   Then call:
+
+    scope = ["write_deals"]
+    permission_url = session.create_permission_url(scope)
+
+   or if you want a custom redirect_uri:
+
+    permission_url = session.create_permission_url(scope, "https://my_redirect_uri.com")
+
+4. Once authorized, the shop redirects the owner to the return URL of your application with a parameter named 'code'. This is a temporary token that the app can exchange for a permanent access token. Make the following call:
+
+    POST https://SHOP_NAME.gainify.com/admin/oauth/access_token
+
+   with the following parameters:
+
+   * client_id – Required – The API key for your app
+   * client_secret – Required – The shared secret for your app
+   * code – Required – The token you received in step 3
+
+   and you'll get your permanent access token back in the response.
+
+   There is a method to make the request and get the token for you. Pass
+   all the params received from the previous call and the method will verify
+   the params, extract the temp code and then request your token:
+
+    token = session.request_token(params)
+
+   This method will save the token to the session object and return it. For future sessions simply pass the token in when creating the session object:
+
+    session = GainifyAPI::Session.new("SHOP_NAME.myshopify.com", token)
+
+5. The session must be activated before use:
+
+    GainifyAPI::Base.activate_session(session)
+
+6. Now you're ready to make authorized API requests to your shop! Data is returned as ActiveResource instances:
+
+    shop = GainifyAPI::Shop.current
+
+    # Get a specific product
+    product = GainifyAPI::Product.find(179761209)
+
+    # Create a new deal
+    new_deal = GainifyAPI::Deal.new(product: product)
+    new_deal.title = "50% OFF - Ends soon" # an attractive deal title
+    new_deal.deal_type = "Online" # whether its online deal or offline deal (voucher deal)
+    new_deal.deal_percent = "50" # Deal percent
+    new_deal.deal_max_size = "100" # max number of sale for this deal
+    new_deal.deal_min_size = "10" # number of ppl to signup for the deal to be on
+    new_deal.per_person_limit = "2" # Per person purchase limit
+    new_deal.save
+
+    # Update a deal
+    deal.max_size = "50"
+    deal.save
+
+   Alternatively, you can use #temp to initialize a Session and execute a command which also handles temporarily setting ActiveResource::Base.site:
+
+    deals = GainifyAPI::Session.temp("SHOP_NAME.gainify.com", token) { GainifyAPI::Deal.find(:all) }
+
+8. If you want to work with another shop, you'll first need to clear the session:
+
+    GainifyAPI::Base.clear_session
+
